@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Detection{% endblock %}
+{% block content %}
+<h2>Detection: live vehicle counts</h2>
+<p id="need-login" class="panel" hidden>Sign in (any role) to see detection data.</p>
+
+<div id="view" hidden>
+  <div class="row">
+    <label>Intersection <select id="intersection"></select></label>
+    <span class="muted">Refreshes every 3 seconds</span>
+  </div>
+
+  <section class="panel" aria-labelledby="density-h">
+    <h2 id="density-h" style="margin-top:0">Traffic density (vehicles per minute)</h2>
+    <table><thead id="density-head"></thead><tbody id="density-body"></tbody></table>
+    <p>Pedestrians waiting at a crosswalk: <strong id="peds">0</strong></p>
+  </section>
+
+  <section aria-labelledby="counts-h">
+    <h2 id="counts-h">Latest counts per lane and class</h2>
+    <table>
+      <thead><tr><th>Interval start (UTC)</th><th>Approach</th><th>Lane</th><th>Class</th><th>Vehicles</th></tr></thead>
+      <tbody id="counts-body"></tbody>
+    </table>
+    <p id="empty" class="muted" hidden>No detections yet. Start the synthetic feed:</p>
+    <pre id="feed-help">python data/detection_samples/generate_feed.py --url http://localhost:8000 --minutes 5</pre>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const $ = TMS.$, esc = TMS.esc;
+  let timer = null;
+
+  function show(user) {
+    $("#need-login").hidden = !!user;
+    $("#view").hidden = !user;
+    clearInterval(timer);
+    if (user) start();
+  }
+
+  async function start() {
+    try {
+      const list = await TMS.api("/api/v1/intersections");
+      $("#intersection").innerHTML = list.map((i) => `<option value="${esc(i.id)}">${esc(i.id)} - ${esc(i.name)}</option>`).join("");
+      await refresh();
+      timer = setInterval(refresh, 3000);
+    } catch (err) { TMS.toast(TMS.message(err), true); }
+  }
+
+  async function refresh() {
+    const id = $("#intersection").value;
+    if (!id) return;
+    try {
+      const d = await TMS.api(`/api/v1/intersections/${encodeURIComponent(id)}/density`);
+      const approaches = Object.keys(d.vehiclesPerMinute);
+      $("#density-head").innerHTML = "<tr>" + approaches.map((a) => `<th>${esc(a)}</th>`).join("") + "</tr>";
+      $("#density-body").innerHTML = "<tr>" + approaches.map((a) => `<td>${d.vehiclesPerMinute[a].toFixed(1)}</td>`).join("") + "</tr>";
+      const peds = await TMS.api(`/api/v1/intersections/${encodeURIComponent(id)}/pedestrian-requests`);
+      $("#peds").textContent = peds.length;
+      const counts = await TMS.api(`/api/v1/detections/counts?intersectionId=${encodeURIComponent(id)}&limit=24`);
+      $("#empty").hidden = counts.length > 0;
+      $("#counts-body").innerHTML = counts.slice().reverse().map((c) =>
+        `<tr><td>${esc(c.intervalStart.replace("T", " ").slice(0, 19))}</td><td>${esc(c.approach)}</td><td>${c.lane}</td><td>${esc(c.vehicleClass)}</td><td>${c.count}</td></tr>`).join("");
+    } catch (err) { TMS.toast(TMS.message(err), true); clearInterval(timer); }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    $("#intersection").addEventListener("change", refresh);
+    TMS.onUser(show);
+  });
+})();
+</script>
+{% endblock %}

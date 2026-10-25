@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Operator console{% endblock %}
+{% block content %}
+<h2>Operator console</h2>
+<p id="need-login" class="panel" hidden>Sign in as an Operator (<code>operator</code> / <code>operator123</code>) to use this page.</p>
+
+<div id="console" hidden>
+  <div class="row">
+    <label>Intersection <select id="intersection"></select></label>
+    <button type="button" id="recompute" class="secondary">Recompute adaptive plan now</button>
+  </div>
+
+  <section class="panel" aria-labelledby="state-h">
+    <h2 id="state-h" style="margin-top:0">Signal state</h2>
+    <p>
+      <span id="stage-badge" class="badge big">-</span>
+      <span class="big" id="phase">-</span>
+      <span class="muted">for another <strong id="remaining">-</strong> s</span>
+    </p>
+    <p>Mode: <strong id="mode">-</strong> <span id="manual-info" class="muted"></span></p>
+    <p>Pedestrians waiting: <strong id="peds">0</strong></p>
+    <table>
+      <caption class="muted">Active plan (version <span id="plan-version">-</span>)</caption>
+      <thead id="plan-head"></thead><tbody id="plan-body"></tbody>
+    </table>
+    <p class="muted" id="next-plan"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="override-h">
+    <h2 id="override-h" style="margin-top:0">Manual override</h2>
+    <form id="override-form" class="row">
+      <label>Phase to hold <select id="ov-phase"></select></label>
+      <label>Hold for (seconds, 15 to 300) <input id="ov-duration" type="number" min="5" max="300" value="30" required></label>
+      <button type="submit">Hold this phase</button>
+      <button type="button" id="ov-auto" class="secondary">Return to automatic</button>
+    </form>
+    <p class="muted">The current green ends at once, then the signal clears through yellow and all-red before the held phase turns green. Rejected while pedestrians are crossing.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="alerts-h">
+    <h2 id="alerts-h" style="margin-top:0">Incident alerts</h2>
+    <p class="muted">Incident alerts will appear here in Sprint 2.</p>
+  </section>
+
+  <section aria-labelledby="audit-h">
+    <h2 id="audit-h">Recent audit log</h2>
+    <table><thead><tr><th>Time (UTC)</th><th>Event</th><th>Source</th><th>Who</th><th>Details</th></tr></thead>
+    <tbody id="audit-body"></tbody></table>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const $ = TMS.$, esc = TMS.esc;
+  let timer = null;
+
+  function show(user) {
+    const ok = !!user;
+    $("#need-login").hidden = ok;
+    $("#console").hidden = !ok;
+    clearInterval(timer);
+    if (ok) start();
+  }
+
+  async function start() {
+    try {
+      const list = await TMS.api("/api/v1/intersections");
+      $("#intersection").innerHTML = list.map((i) => `<option value="${esc(i.id)}">${esc(i.id)} - ${esc(i.name)}</option>`).join("");
+      await refresh();
+      timer = setInterval(refresh, 2000);
+    } catch (err) { TMS.toast(TMS.message(err), true); }
+  }
+
+  const iid = () => $("#intersection").value;
+
+  async function refresh() {
+    if (!iid()) return;
+    try {
+      const s = await TMS.api(`/api/v1/intersections/${encodeURIComponent(iid())}/signal-state`);
+      $("#phase").textContent = s.phase;
+      const badge = $("#stage-badge");
+      badge.textContent = s.stage;
+      badge.className = "badge big " + s.stage;
+      $("#remaining").textContent = Math.ceil(s.secondsRemaining);
+      $("#mode").textContent = s.mode;
+      $("#manual-info").textContent = s.manual ? `holding ${s.manual.phase} until ${s.manual.until.slice(11, 19)} UTC (by ${s.manual.by})` : "";
+      $("#peds").textContent = s.pedestriansWaiting;
+      $("#plan-version").textContent = s.planVersion;
+      const phases = Object.keys(s.plan.green);
+      $("#plan-head").innerHTML = "<tr>" + phases.map((p) => `<th>${esc(p)} green (s)</th>`).join("") + "<th>Yellow (s)</th><th>All-red (s)</th></tr>";
+      $("#plan-body").innerHTML = "<tr>" + phases.map((p) => `<td>${s.plan.green[p]}</td>`).join("") + `<td>${s.plan.yellow}</td><td>${s.plan.all_red}</td></tr>`;
+      $("#next-plan").textContent = s.nextPlan ? "Next plan waiting: " + JSON.stringify(s.nextPlan.green) + " (applies at the next green)" : "";
+      const sel = $("#ov-phase");
+      if (sel.dataset.for !== phases.join(",")) {
+        sel.innerHTML = phases.concat(["ALL_RED"]).map((p) => `<option>${esc(p)}</option>`).join("");
+        sel.dataset.for = phases.join(",");
+      }
+      const log = await TMS.api(`/api/v1/intersections/${encodeURIComponent(iid())}/audit-log?limit=12`).catch(() => []);
+      $("#audit-body").innerHTML = log.map((e) => `<tr><td>${esc(e.timestamp.slice(11, 19))}</td><td>${esc(e.event)}</td><td>${esc(e.source)}</td><td>${esc(e.actor || "")}</td><td>${esc(summary(e.details))}</td></tr>`).join("");
+    } catch (err) { TMS.toast(TMS.message(err), true); clearInterval(timer); }
+  }
+
+  function summary(d) {
+    if (d.to) return `${d.from} to ${d.to}`;
+    if (d.plan) return "green " + JSON.stringify(d.plan.green);
+    if (d.reason) return Array.isArray(d.reason) ? d.reason.join("; ") : d.reason;
+    if (d.phase) return `${d.phase}${d.durationSeconds ? " for " + d.durationSeconds + " s" : ""}`;
+    return JSON.stringify(d);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    $("#intersection").addEventListener("change", refresh);
+    $("#recompute").addEventListener("click", async () => {
+      try {
+        const r = await TMS.api(`/api/v1/intersections/${encodeURIComponent(iid())}/adaptive/recompute`, { method: "POST" });
+        TMS.toast(r.plan ? "New plan computed: green " + JSON.stringify(r.plan.green) : "Plan unchanged or rejected");
+        refresh();
+      } catch (err) { TMS.toast(TMS.message(err), true); }
+    });
+    $("#override-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        await TMS.api(`/api/v1/intersections/${encodeURIComponent(iid())}/signal-command`, { method: "POST",
+          body: { mode: "manual", phase: $("#ov-phase").value, duration: Number($("#ov-duration").value), commandSource: "operator-console" } });
+        TMS.toast("Override applied"); refresh();
+      } catch (err) { TMS.toast(TMS.message(err), true); }
+    });
+    $("#ov-auto").addEventListener("click", async () => {
+      try {
+        await TMS.api(`/api/v1/intersections/${encodeURIComponent(iid())}/signal-command`, { method: "POST", body: { mode: "auto", commandSource: "operator-console" } });
+        TMS.toast("Back to automatic control"); refresh();
+      } catch (err) { TMS.toast(TMS.message(err), true); }
+    });
+    TMS.onUser(show);
+  });
+})();
+</script>
+{% endblock %}

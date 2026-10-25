@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<h2>Administration</h2>
+<p id="need-admin" class="panel" hidden>Sign in as an Administrator (<code>admin</code> / <code>admin12345</code>) to use this page.</p>
+
+<div id="admin" hidden>
+  <section aria-labelledby="users-h">
+    <h2 id="users-h">Users and roles</h2>
+    <table><thead><tr><th>User</th><th>Role</th><th>Change role</th></tr></thead><tbody id="users-body"></tbody></table>
+    <form id="user-form" class="row">
+      <label>Username <input id="u-name" required maxlength="60"></label>
+      <label>Password (8+ characters) <input id="u-pass" type="password" required minlength="8"></label>
+      <label>Role <select id="u-role"><option>Operator</option><option>Analyst</option><option>Administrator</option></select></label>
+      <button type="submit">Add user</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="cfg-h">
+    <h2 id="cfg-h">Intersection settings</h2>
+    <div class="row"><label>Intersection <select id="intersection"></select></label>
+      <span class="muted">Version <strong id="cfg-version">-</strong>. Changes apply on the next control step, no restart.</span></div>
+    <form id="cfg-form" class="row" style="margin-top:12px">
+      <label>Cycle (s) <input data-key="cycle_seconds" type="number" required></label>
+      <label>Min green (s) <input data-key="min_green" type="number" required></label>
+      <label>Max green (s) <input data-key="max_green" type="number" required></label>
+      <label>Yellow (s) <input data-key="yellow" type="number" required></label>
+      <label>All-red (s) <input data-key="all_red" type="number" required></label>
+      <label>Pedestrian walk (s) <input data-key="pedestrian_walk" type="number" required></label>
+      <label>Pedestrian clearance (s) <input data-key="pedestrian_clearance" type="number" required></label>
+      <label>Count interval (s) <input data-key="count_interval_seconds" type="number" required></label>
+      <label>Density window (min) <input data-key="density_window_minutes" type="number" required></label>
+      <button type="submit">Save settings</button>
+    </form>
+    <h3>Add an intersection</h3>
+    <form id="new-form" class="row">
+      <label>Id (no spaces) <input id="n-id" required maxlength="40" pattern="\S+"></label>
+      <label>Name <input id="n-name" maxlength="120"></label>
+      <button type="submit" class="secondary">Create with default settings</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="sec-h">
+    <h2 id="sec-h">Security log (latest 30)</h2>
+    <table><thead><tr><th>Time (UTC)</th><th>User</th><th>Event</th><th>Details</th></tr></thead><tbody id="sec-body"></tbody></table>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const $ = TMS.$, esc = TMS.esc;
+  const iid = () => $("#intersection").value;
+
+  function show(user) {
+    const ok = !!user && user.role === "Administrator";
+    $("#need-admin").hidden = ok;
+    $("#admin").hidden = !ok;
+    if (ok) loadAll();
+  }
+
+  async function loadAll() {
+    try {
+      const list = await TMS.api("/api/v1/intersections");
+      const keep = iid();
+      $("#intersection").innerHTML = list.map((i) => `<option value="${esc(i.id)}">${esc(i.id)} - ${esc(i.name)}</option>`).join("");
+      if (keep) $("#intersection").value = keep;
+      await Promise.all([loadUsers(), loadConfig(), loadLog()]);
+    } catch (err) { TMS.toast(TMS.message(err), true); }
+  }
+
+  async function loadUsers() {
+    const users = await TMS.api("/api/v1/admin/users");
+    $("#users-body").innerHTML = users.map((u) => `<tr><td>${esc(u.username)}</td><td>${esc(u.role)}</td><td>
+      <select data-user="${esc(u.username)}" aria-label="Role for ${esc(u.username)}">${["Operator", "Analyst", "Administrator"].map((r) => `<option${r === u.role ? " selected" : ""}>${r}</option>`).join("")}</select></td></tr>`).join("");
+  }
+
+  async function loadConfig() {
+    if (!iid()) return;
+    const cfg = await TMS.api(`/api/v1/admin/intersections/${encodeURIComponent(iid())}/config`);
+    $("#cfg-version").textContent = cfg.version;
+    document.querySelectorAll("#cfg-form [data-key]").forEach((el) => { el.value = cfg[el.dataset.key]; });
+  }
+
+  async function loadLog() {
+    const rows = await TMS.api("/api/v1/admin/security-log?limit=30");
+    $("#sec-body").innerHTML = rows.map((r) => `<tr><td>${esc(r.timestamp.slice(11, 19))}</td><td>${esc(r.user || "")}</td><td>${esc(r.event)}</td><td>${esc(r.details)}</td></tr>`).join("");
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    $("#intersection").addEventListener("change", loadConfig);
+    $("#users-body").addEventListener("change", async (event) => {
+      const sel = event.target.closest("select[data-user]");
+      if (!sel) return;
+      try { await TMS.api(`/api/v1/admin/users/${encodeURIComponent(sel.dataset.user)}/role`, { method: "PUT", body: { role: sel.value } }); TMS.toast("Role updated"); loadLog(); }
+      catch (err) { TMS.toast(TMS.message(err), true); loadUsers(); }
+    });
+    $("#user-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        await TMS.api("/api/v1/admin/users", { method: "POST", body: { username: $("#u-name").value, password: $("#u-pass").value, role: $("#u-role").value } });
+        event.target.reset(); TMS.toast("User added"); loadUsers();
+      } catch (err) { TMS.toast(TMS.message(err), true); }
+    });
+    $("#cfg-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const changes = {};
+      document.querySelectorAll("#cfg-form [data-key]").forEach((el) => { changes[el.dataset.key] = Number(el.value); });
+      try {
+        const out = await TMS.api(`/api/v1/admin/intersections/${encodeURIComponent(iid())}/config`, { method: "PUT", body: { changes } });
+        $("#cfg-version").textContent = out.version; TMS.toast("Settings saved as version " + out.version);
+      } catch (err) { TMS.toast(TMS.message(err), true); }
+    });
+    $("#new-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        await TMS.api("/api/v1/admin/intersections", { method: "POST", body: { id: $("#n-id").value, name: $("#n-name").value } });
+        event.target.reset(); TMS.toast("Intersection created"); loadAll();
+      } catch (err) { TMS.toast(TMS.message(err), true); }
+    });
+    TMS.onUser(show);
+  });
+})();
+</script>
+{% endblock %}

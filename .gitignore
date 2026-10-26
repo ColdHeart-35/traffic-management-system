@@ -1,11 +1,2 @@
 __pycache__/
 *.pyc
-.venv/
-.pytest_cache/
-*.db
-*.db-wal
-*.db-shm
-certs/
-.env
-.idea/
-.vscode/

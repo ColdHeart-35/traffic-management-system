@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Home{% endblock %} · Traffic Management System</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header>
+  <h1>Traffic Management System <span class="tag">Simulation</span></h1>
+  <nav aria-label="Main">
+    {% for path, title, _ in pages %}
+    <a href="{{ path }}"{% if path == current %} aria-current="page"{% endif %}>{{ title }}</a>
+    {% endfor %}
+    <a href="/docs">API</a>
+  </nav>
+  <form id="login-form" class="login" aria-label="Sign in">
+    <label for="login-user">User</label>
+    <input id="login-user" autocomplete="username" required size="10">
+    <label for="login-pass">Password</label>
+    <input id="login-pass" type="password" autocomplete="current-password" required size="10">
+    <button type="submit">Sign in</button>
+  </form>
+  <div id="whoami" class="login" hidden>
+    <span>Signed in as <strong id="who-name"></strong> (<span id="who-role"></span>)</span>
+    <button type="button" id="logout" class="secondary">Sign out</button>
+  </div>
+</header>
+<main id="main">
+{% block content %}{% endblock %}
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/static/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Simulation{% endblock %}
+{% block content %}
+<h2>Simulation</h2>
+<p class="panel">The analyst workbench page arrives in Sprint 2. For the Sprint 1 demo, use the <a href="/docs">API page</a>:</p>
+<ol>
+  <li>Sign in with <code>POST /api/v1/auth/login</code> as <code>analyst</code> / <code>analyst123</code>, then press <strong>Authorize</strong> and paste the token.</li>
+  <li><code>POST /api/v1/simulation/networks/import-sample</code> with <code>{"name": "single_intersection"}</code>.</li>
+  <li><code>POST /api/v1/simulation/runs</code> with <code>{"networkId": 1, "durationSeconds": 3600, "seed": 42}</code>.</li>
+  <li>Read the delay, queue length and throughput in the response.</li>
+</ol>
+<p class="muted">Simulation results are estimates and do not replace formal traffic-engineering sign-off.</p>
+{% endblock %}

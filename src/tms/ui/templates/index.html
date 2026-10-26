@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<h2>Welcome</h2>
+<p>This is the Sprint 1 build of the Traffic Management System (Simulation). Sign in at the top right, then open a page.</p>
+<table>
+  <caption class="muted">Demo accounts (local use only)</caption>
+  <thead><tr><th>User</th><th>Password</th><th>Role</th><th>Can do</th></tr></thead>
+  <tbody>
+    <tr><td>operator</td><td>operator123</td><td>Operator</td><td>See signals, override signals, view detections</td></tr>
+    <tr><td>analyst</td><td>analyst123</td><td>Analyst</td><td>Run simulations (use the API page for now)</td></tr>
+    <tr><td>admin</td><td>admin12345</td><td>Administrator</td><td>Users, intersection settings, security log</td></tr>
+  </tbody>
+</table>
+<h2>What works in Sprint 1</h2>
+<ul>
+  <li><a href="/operator">Operator console</a>: live signal phase, manual override, adaptive plan, audit log.</li>
+  <li><a href="/detection">Detection</a>: per-lane vehicle counts and density from the synthetic sensor feed.</li>
+  <li><a href="/admin">Admin</a>: users, roles, intersection configuration, security log.</li>
+  <li><a href="/docs">API page</a>: simulation (networks, runs, metrics) and every other endpoint.</li>
+</ul>
+<p class="muted">Incidents and reports arrive in Sprint 2.</p>
+{% endblock %}

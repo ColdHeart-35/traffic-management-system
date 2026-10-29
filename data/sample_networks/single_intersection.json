@@ -1,0 +1,100 @@
+{
+  "name": "Single intersection",
+  "nodes": [
+    {
+      "id": "A",
+      "type": "entry"
+    },
+    {
+      "id": "B",
+      "type": "entry"
+    },
+    {
+      "id": "X",
+      "type": "signal",
+      "signal": {
+        "yellow": 3,
+        "all_red": 2,
+        "offset": 0,
+        "phases": [
+          {
+            "name": "NS",
+            "green": 35,
+            "links": [
+              "A_X"
+            ]
+          },
+          {
+            "name": "EW",
+            "green": 35,
+            "links": [
+              "B_X"
+            ]
+          }
+        ]
+      },
+      "turns": {
+        "A_X": {
+          "X_C": 0.7,
+          "X_D": 0.3
+        },
+        "B_X": {
+          "X_C": 0.4,
+          "X_D": 0.6
+        }
+      }
+    },
+    {
+      "id": "C",
+      "type": "exit"
+    },
+    {
+      "id": "D",
+      "type": "exit"
+    }
+  ],
+  "links": [
+    {
+      "id": "A_X",
+      "from": "A",
+      "to": "X",
+      "length_m": 300,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "B_X",
+      "from": "B",
+      "to": "X",
+      "length_m": 300,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "X_C",
+      "from": "X",
+      "to": "C",
+      "length_m": 200,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "X_D",
+      "from": "X",
+      "to": "D",
+      "length_m": 200,
+      "lanes": 1,
+      "speed_mps": 13.9
+    }
+  ],
+  "demand": [
+    {
+      "link": "A_X",
+      "rate_per_hour": 500
+    },
+    {
+      "link": "B_X",
+      "rate_per_hour": 300
+    }
+  ]
+}

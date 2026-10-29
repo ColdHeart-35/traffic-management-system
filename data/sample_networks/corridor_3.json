@@ -1,0 +1,242 @@
+{
+  "name": "Corridor with three signals",
+  "nodes": [
+    {
+      "id": "W",
+      "type": "entry"
+    },
+    {
+      "id": "E",
+      "type": "exit"
+    },
+    {
+      "id": "N1",
+      "type": "entry"
+    },
+    {
+      "id": "M1",
+      "type": "exit"
+    },
+    {
+      "id": "S1",
+      "type": "signal",
+      "signal": {
+        "yellow": 3,
+        "all_red": 2,
+        "offset": 0,
+        "phases": [
+          {
+            "name": "MAIN",
+            "green": 40,
+            "links": [
+              "W_S1"
+            ]
+          },
+          {
+            "name": "SIDE",
+            "green": 20,
+            "links": [
+              "N1_S1"
+            ]
+          }
+        ]
+      },
+      "turns": {
+        "W_S1": {
+          "S1_S2": 0.85,
+          "S1_M1": 0.15
+        },
+        "N1_S1": {
+          "S1_S2": 0.5,
+          "S1_M1": 0.5
+        }
+      }
+    },
+    {
+      "id": "N2",
+      "type": "entry"
+    },
+    {
+      "id": "M2",
+      "type": "exit"
+    },
+    {
+      "id": "S2",
+      "type": "signal",
+      "signal": {
+        "yellow": 3,
+        "all_red": 2,
+        "offset": 25,
+        "phases": [
+          {
+            "name": "MAIN",
+            "green": 40,
+            "links": [
+              "S1_S2"
+            ]
+          },
+          {
+            "name": "SIDE",
+            "green": 20,
+            "links": [
+              "N2_S2"
+            ]
+          }
+        ]
+      },
+      "turns": {
+        "S1_S2": {
+          "S2_S3": 0.85,
+          "S2_M2": 0.15
+        },
+        "N2_S2": {
+          "S2_S3": 0.5,
+          "S2_M2": 0.5
+        }
+      }
+    },
+    {
+      "id": "N3",
+      "type": "entry"
+    },
+    {
+      "id": "M3",
+      "type": "exit"
+    },
+    {
+      "id": "S3",
+      "type": "signal",
+      "signal": {
+        "yellow": 3,
+        "all_red": 2,
+        "offset": 50,
+        "phases": [
+          {
+            "name": "MAIN",
+            "green": 40,
+            "links": [
+              "S2_S3"
+            ]
+          },
+          {
+            "name": "SIDE",
+            "green": 20,
+            "links": [
+              "N3_S3"
+            ]
+          }
+        ]
+      },
+      "turns": {
+        "S2_S3": {
+          "S3_E": 0.85,
+          "S3_M3": 0.15
+        },
+        "N3_S3": {
+          "S3_E": 0.5,
+          "S3_M3": 0.5
+        }
+      }
+    }
+  ],
+  "links": [
+    {
+      "id": "W_S1",
+      "from": "W",
+      "to": "S1",
+      "length_m": 350,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "S1_S2",
+      "from": "S1",
+      "to": "S2",
+      "length_m": 350,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "S2_S3",
+      "from": "S2",
+      "to": "S3",
+      "length_m": 350,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "S3_E",
+      "from": "S3",
+      "to": "E",
+      "length_m": 350,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "N1_S1",
+      "from": "N1",
+      "to": "S1",
+      "length_m": 250,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "S1_M1",
+      "from": "S1",
+      "to": "M1",
+      "length_m": 250,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "N2_S2",
+      "from": "N2",
+      "to": "S2",
+      "length_m": 250,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "S2_M2",
+      "from": "S2",
+      "to": "M2",
+      "length_m": 250,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "N3_S3",
+      "from": "N3",
+      "to": "S3",
+      "length_m": 250,
+      "lanes": 1,
+      "speed_mps": 13.9
+    },
+    {
+      "id": "S3_M3",
+      "from": "S3",
+      "to": "M3",
+      "length_m": 250,
+      "lanes": 1,
+      "speed_mps": 13.9
+    }
+  ],
+  "demand": [
+    {
+      "link": "W_S1",
+      "rate_per_hour": 600
+    },
+    {
+      "link": "N1_S1",
+      "rate_per_hour": 150
+    },
+    {
+      "link": "N2_S2",
+      "rate_per_hour": 150
+    },
+    {
+      "link": "N3_S3",
+      "rate_per_hour": 150
+    }
+  ]
+}

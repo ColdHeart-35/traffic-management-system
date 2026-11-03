@@ -18,7 +18,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(30))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-    mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)  # used in Sprint 2 (PRJ-SR-002)
+    mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)   # set once enrolment is confirmed
+    mfa_pending: Mapped[str | None] = mapped_column(String(64), nullable=True)  # secret shown, not yet confirmed
+    mfa_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)    # replay protection
     created_at: Mapped[datetime] = mapped_column(DateTime, default=clock.now)
 
 
@@ -30,6 +32,7 @@ class AuthToken(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=clock.now)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
+    mfa_verified: Mapped[bool] = mapped_column(Boolean, default=False)   # signed in with a second factor
 
 
 class SecurityLog(Base):

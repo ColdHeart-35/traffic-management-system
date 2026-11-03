@@ -2,5 +2,81 @@
 {% block title %}Reports{% endblock %}
 {% block content %}
 <h2>Reports</h2>
-<p class="panel">Daily, weekly and monthly traffic reports with PDF and CSV export arrive in Sprint 2.</p>
+<p id="rep-gate" class="panel" role="status">Sign in as an analyst or administrator to see reports.</p>
+<div id="rep-app" hidden>
+  <p class="muted">Daily, weekly and monthly reports are created automatically when each period ends. Each covers traffic volume, incidents and signal performance for every intersection.</p>
+  <form id="gen-form" class="row">
+    <label for="gen-period">Period</label>
+    <select id="gen-period"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
+    <label for="gen-date">Day inside the period (optional)</label>
+    <input id="gen-date" type="date">
+    <button type="submit">Generate now</button>
+  </form>
+  <table id="reports">
+    <caption class="muted">Available reports, newest first</caption>
+    <thead><tr><th scope="col">Period</th><th scope="col">From (UTC)</th><th scope="col">To (UTC)</th><th scope="col">Created by</th><th scope="col">Download</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <section class="panel" aria-labelledby="sum-h" id="summary" hidden>
+    <h3 id="sum-h">Summary</h3>
+    <table><thead><tr><th scope="col">Intersection</th><th scope="col">Vehicles</th><th scope="col">Incidents</th><th scope="col">Overrides</th><th scope="col">Plans applied</th></tr></thead><tbody></tbody></table>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const { api, esc, toast, message, onUser, $ } = TMS;
+
+  async function load() {
+    const rows = await api("/api/v1/reports");
+    $("#reports tbody").innerHTML = rows.map((r) => `<tr>
+      <th scope="row">${esc(r.period)}</th><td>${esc(r.periodStart.slice(0, 10))}</td><td>${esc(r.periodEnd.slice(0, 10))}</td><td>${esc(r.generatedBy)}</td>
+      <td><button type="button" class="secondary" data-view="${r.id}">View</button>
+          <button type="button" class="secondary" data-get="${r.id}" data-fmt="json">JSON</button>
+          <button type="button" class="secondary" data-get="${r.id}" data-fmt="csv">CSV</button></td></tr>`).join("") ||
+      '<tr><td colspan="5" class="muted">No reports yet. The first appears when a day ends, or generate one now.</td></tr>';
+  }
+
+  async function download(id, format) {      // the download needs the sign-in header, so it goes through fetch
+    const token = sessionStorage.getItem("tms_token");
+    const res = await fetch(`/api/v1/reports/${id}?format=${format}`, { headers: { Authorization: "Bearer " + token } });
+    if (!res.ok) throw new Error("Download failed");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(await res.blob());
+    link.download = `tms-report-${id}.${format}`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  async function view(id) {
+    const report = await api(`/api/v1/reports/${id}`);
+    $("#summary tbody").innerHTML = report.intersections.map((i) => `<tr><th scope="row">${esc(i.id)} ${esc(i.name)}</th>
+      <td>${i.volume.totalVehicles}</td><td>${i.incidents.total}</td><td>${i.signalPerformance.overrides}</td><td>${i.signalPerformance.plansApplied}</td></tr>`).join("");
+    $("#summary").hidden = false;
+  }
+
+  $("#reports").addEventListener("click", async (event) => {
+    try {
+      if (event.target.dataset.get) await download(event.target.dataset.get, event.target.dataset.fmt);
+      else if (event.target.dataset.view) await view(event.target.dataset.view);
+    } catch (err) { toast(message(err), true); }
+  });
+  $("#gen-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const body = { period: $("#gen-period").value };
+      if ($("#gen-date").value) body.date = $("#gen-date").value;
+      await api("/api/v1/reports/generate", { method: "POST", body });
+      toast("Report generated");
+      await load();
+    } catch (err) { toast(message(err), true); }
+  });
+  onUser(async (user) => {
+    const ok = user && ["Analyst", "Administrator"].includes(user.role);
+    $("#rep-app").hidden = !ok; $("#rep-gate").hidden = ok;
+    if (ok) { try { await load(); } catch (err) { toast(message(err), true); } }
+  });
+})();
+</script>
 {% endblock %}

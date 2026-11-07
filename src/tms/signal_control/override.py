@@ -26,7 +26,10 @@ MAX_HOLD = 300
 
 
 def request_override(db: Session, intersection_id: str, phase: str, duration: int, actor: str,
-                     now: datetime | None = None, command_source: str = "operator-console") -> dict:
+                     now: datetime | None = None, command_source: str = "operator-console",
+                     source: str = "manual", details: dict | None = None) -> dict:
+    """``source`` is "manual" for operators; the preemption module passes "preemption" (it may cut a
+    pedestrian stage short because an emergency vehicle has priority)."""
     now = now or clock.now()
     cfg = config_service.get_intersection_config(db, intersection_id)
     if phase not in cfg["phases"] and phase != ALL_RED:
@@ -40,27 +43,32 @@ def request_override(db: Session, intersection_id: str, phase: str, duration: in
     state = get_or_create_state(db, intersection_id, now, cfg)
     advance_state(db, state, cfg, now)
 
-    if state.stage == PED:  # safety interlock: minimum pedestrian clearance
+    interrupted_ped = state.stage == PED and source == "preemption"
+    if state.stage == PED and not interrupted_ped:  # safety interlock: minimum pedestrian clearance
         audit.log_event(db, intersection_id, "override_rejected", "manual", actor,
                         {"reason": "pedestrian crossing in progress", "phase": phase}, timestamp=now)
         db.commit()
         raise InterlockError("Pedestrian crossing in progress: minimum pedestrian clearance must finish first")
 
     state.mode = MANUAL
+    state.control_source = source
     state.manual_phase = phase
     state.manual_by = actor
     state.manual_until = now + timedelta(seconds=duration)
     if state.stage == GREEN and state.phase == phase:
         state.stage_duration = max(1, math.ceil((state.manual_until - state.stage_started_at).total_seconds()))
-    elif state.stage == GREEN or (state.stage == ALL_RED and state.phase == ALL_RED):
+    elif state.stage in (GREEN, PED) or (state.stage == ALL_RED and state.phase == ALL_RED):
         # cut the current green (or previous hold) short: it ends within one second
         state.stage_duration = max(1, math.ceil(elapsed_seconds(state, now)))
-    audit.log_event(db, intersection_id, "override_applied", "manual", actor,
-                    {"phase": phase, "durationSeconds": duration, "commandSource": command_source}, timestamp=now)
+    audit.log_event(db, intersection_id, "preemption_applied" if source == "preemption" else "override_applied",
+                    source, actor, {"phase": phase, "durationSeconds": duration, "commandSource": command_source,
+                                    **({"pedestrianInterrupted": True} if interrupted_ped else {}), **(details or {})},
+                    timestamp=now)
     advance_state(db, state, cfg, now)
     db.commit()
     return {"status": "applied", "commandId": "CMD-" + uuid.uuid4().hex[:10], "appliedAt": now.isoformat(),
-            "mode": MANUAL, "phase": phase, "until": state.manual_until.isoformat()}
+            "mode": MANUAL, "phase": phase, "until": state.manual_until.isoformat(), "source": source,
+            "stage": state.stage}
 
 
 def clear_override(db: Session, intersection_id: str, actor: str, now: datetime | None = None,

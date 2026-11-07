@@ -3,15 +3,15 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from tms.admin import config_service, rbac
 from tms.common import clock
 from tms.common.db import get_db
-from tms.common.errors import CommandError
-from tms.signal_control import audit, controller, override
+from tms.common.errors import AuthError, CommandError, ForbiddenError
+from tms.signal_control import audit, controller, coordination, override, preemption
 
 router = APIRouter(prefix="/api/v1/intersections", tags=["signal-control"])
 
@@ -64,3 +64,43 @@ def audit_log(intersection_id: str, event: str | None = None, limit: int = Query
               _: rbac.CurrentUser = Depends(rbac.require_role(rbac.OPERATOR, rbac.ADMINISTRATOR))):
     config_service.get_intersection_config(db, intersection_id)
     return audit.list_events(db, intersection_id, event=event, limit=limit)
+
+
+# ---------- emergency-vehicle preemption (TMS-F-004) ----------
+
+class PreemptionIn(BaseModel):
+    approach: str
+    vehicleId: str
+    holdSeconds: int = preemption.DEFAULT_HOLD
+
+
+def require_preemption_key(request: Request, x_preemption_key: str | None = Header(default=None)) -> None:
+    """The preemption channel is secured with its own key (401 missing, 403 wrong)."""
+    if not x_preemption_key:
+        raise AuthError("Missing X-Preemption-Key header")
+    if x_preemption_key != request.app.state.settings.preemption_key:
+        raise ForbiddenError("Invalid preemption key")
+
+
+@router.post("/{intersection_id}/preemption", status_code=201)
+def preempt(intersection_id: str, body: PreemptionIn, db: Session = Depends(get_db),
+            _: None = Depends(require_preemption_key)):
+    config_service.get_intersection_config(db, intersection_id)
+    return preemption.request_preemption(db, intersection_id, body.approach, body.vehicleId, body.holdSeconds,
+                                         clock.now())
+
+
+@router.post("/{intersection_id}/preemption/clear")
+def preempt_clear(intersection_id: str, vehicleId: str, db: Session = Depends(get_db),
+                  _: None = Depends(require_preemption_key)):
+    config_service.get_intersection_config(db, intersection_id)
+    return preemption.clear_preemption(db, intersection_id, vehicleId, clock.now())
+
+
+# ---------- green-wave coordination (TMS-F-005) ----------
+
+@router.post("/corridors/green-wave")
+def green_wave(corridor: dict, _: rbac.CurrentUser = Depends(rbac.require_role(rbac.OPERATOR, rbac.ADMINISTRATOR))):
+    offsets = coordination.compute_offsets(corridor)
+    return {"offsets": offsets, "stopsWithOffsets": coordination.platoon_stops(corridor, [o["offsetSeconds"] for o in offsets]),
+            "stopsWithoutOffsets": coordination.platoon_stops(corridor, [0.0] * len(offsets))}

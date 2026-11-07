@@ -191,8 +191,11 @@ def _start_green(db: Session, state: SignalState, cfg: dict, phase: str, at: dat
 def end_override_state(db: Session, state: SignalState, at: datetime, reason: str, actor: str | None = None,
                        truncate: bool = False) -> None:
     """Leave manual mode. With ``truncate`` the held stage ends now (operator pressed Return to auto)."""
-    audit.log_event(db, state.intersection_id, "override_cleared", "manual" if actor else "auto", actor,
+    preempt = state.control_source == "preemption"
+    audit.log_event(db, state.intersection_id, "preemption_cleared" if preempt else "override_cleared",
+                    "preemption" if preempt else ("manual" if actor else "auto"), actor,
                     {"reason": reason, "phase": state.manual_phase}, timestamp=at)
+    state.control_source = "manual"
     state.mode = ADAPTIVE
     state.manual_phase = None
     state.manual_until = None
@@ -206,7 +209,7 @@ def _transition(db: Session, state: SignalState, cfg: dict, at: datetime) -> Non
     if state.mode == MANUAL and state.manual_until is not None and at >= state.manual_until:
         end_override_state(db, state, at, reason="expired")
     manual = state.mode == MANUAL
-    source = "manual" if manual else "auto"
+    source = (state.control_source or "manual") if manual else "auto"
     iid = state.intersection_id
 
     if state.stage == GREEN:

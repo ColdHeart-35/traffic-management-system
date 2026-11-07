@@ -26,6 +26,7 @@ class SignalState(Base):
     manual_phase: Mapped[str | None] = mapped_column(String(20), nullable=True)
     manual_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     manual_by: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    control_source: Mapped[str] = mapped_column(String(20), default="manual")  # manual | preemption
 
 
 class SignalPlanRecord(Base):

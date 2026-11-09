@@ -30,3 +30,16 @@ class SimRun(Base):
     trajectories: Mapped[str] = mapped_column(Text)       # JSON, sampled every few seconds
     created_by: Mapped[str | None] = mapped_column(String(60), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=clock.now)
+
+
+class SimComparison(Base):
+    """A saved comparison of several scenarios on one network (TMS-F-012)."""
+
+    __tablename__ = "sim_comparisons"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    network_id: Mapped[int] = mapped_column(ForeignKey("sim_networks.id"), index=True)
+    params: Mapped[str] = mapped_column(Text)             # JSON: the shared parameters and the scenario list
+    result: Mapped[str] = mapped_column(Text)             # JSON: metrics, differences, winners, run ids
+    created_by: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=clock.now)
